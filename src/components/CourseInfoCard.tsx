@@ -1,133 +1,277 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Trash2, Mail, User, BookOpen } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  Trash2,
+  Mail,
+  User,
+  BookOpen,
+  SlidersHorizontal,
+  Calendar,
+  MapPin,
+  ArrowUpRight,
+} from "lucide-react";
+import CourseDetailsDrawer, {
+  CourseDetailPayload,
+  CourseMetadataExtras,
+  ExamMilestone,
+  DEFAULT_CATEGORIES,
+  DEFAULT_EXAM_MILESTONES,
+  STANDARD_10_POINT_SCALE,
+} from "./CourseDetailsDrawer";
 
-// --- ExamCard Component (Inner) ---
-interface ExamCardProps {
-  subject: string;
-  date: string;
-  testType: string;
-  onRemove: () => void;
+export interface CourseInfoCardProps extends Partial<CourseDetailPayload>, CourseMetadataExtras {
+  id?: number | string;
+  courseName?: string;
+  courseGrade?: number;
+  courseCredits?: number;
+  courseProfessor?: string;
+  courseProfessorEmail?: string;
+  onDeleteCourse?: () => void;
+  onUpdateCourse?: (updated: CourseDetailPayload & CourseMetadataExtras) => void;
+  onAddToStudyPlan?: (exam: ExamMilestone, course: CourseDetailPayload) => void;
+  defaultDrawerOpen?: boolean;
 }
 
-function ExamCard({ subject, date, testType, onRemove }: ExamCardProps) {
-  return (
-    <div className="bg-amber-600/50 p-4 text-white w-full rounded-sm border border-white/20 mb-3 group relative">
-      <button onClick={onRemove} className="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-300">
-        <Trash2 className="w-4 h-4" />
-      </button>
-      <h3 className="uppercase text-[10px] font-bold opacity-70">Upcoming Exam</h3>
-      <p className="text-lg font-black mt-1">{subject}</p>
-      <div className="flex justify-between items-end mt-2">
-        <p className="text-sm opacity-90">{date}</p>
-        <p className="text-[10px] bg-white/20 px-2 py-0.5 rounded uppercase">{testType}</p>
-      </div>
-    </div>
-  );
-}
-
-// --- Main CourseCard Component ---
-export default function CourseInfoCard({ 
-  courseName, 
-  courseGrade, 
-  courseCredits, 
-  courseProfessor, 
+export default function CourseInfoCard({
+  id,
+  courseId,
+  title,
+  courseName,
+  currentGrade,
+  courseGrade,
+  credits,
+  courseCredits,
+  professor,
+  courseProfessor,
+  professorEmail,
   courseProfessorEmail,
-  onDeleteCourse // New prop to remove the whole course
-}: any) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [exams, setExams] = useState<{subject: string, date: string, testType: string}[]>([]);
-  
-  const [newSubject, setNewSubject] = useState("");
-  const [newDate, setNewDate] = useState("");
-  const [newType, setNewType] = useState("Midterm");
+  categories,
+  gradeScale,
+  exams,
+  onDeleteCourse,
+  onUpdateCourse,
+  onAddToStudyPlan,
+  defaultDrawerOpen = false,
+}: CourseInfoCardProps) {
+  const [isDrawerOpen, setIsDrawerOpen] = useState(defaultDrawerOpen);
 
-  // Auto-remove expired exams
+  const resolvedCourseId = String(courseId ?? id ?? "course-101");
+  const resolvedTitle = title || courseName || "Computer Architecture";
+  const resolvedGrade = currentGrade ?? courseGrade ?? 94;
+  const resolvedCredits = credits ?? courseCredits ?? 4;
+  const resolvedProfessor = professor || courseProfessor || "Dr. Elena Vance";
+  const resolvedEmail =
+    professorEmail || courseProfessorEmail || "evance@university.edu";
+
+  const [localCourse, setLocalCourse] = useState<
+    CourseDetailPayload & CourseMetadataExtras
+  >({
+    courseId: resolvedCourseId,
+    title: resolvedTitle,
+    currentGrade: resolvedGrade,
+    credits: resolvedCredits,
+    professor: resolvedProfessor,
+    professorEmail: resolvedEmail,
+    categories:
+      categories && categories.length > 0 ? categories : DEFAULT_CATEGORIES,
+    gradeScale:
+      gradeScale && gradeScale.length > 0
+        ? gradeScale
+        : STANDARD_10_POINT_SCALE,
+    exams: exams && exams.length > 0 ? exams : DEFAULT_EXAM_MILESTONES,
+  });
+
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const validExams = exams.filter(exam => new Date(exam.date) >= today);
-    if (validExams.length !== exams.length) setExams(validExams);
-  }, [exams]);
+    setLocalCourse((prev) => ({
+      ...prev,
+      courseId: resolvedCourseId,
+      title: title || courseName || prev.title,
+      currentGrade: currentGrade ?? courseGrade ?? prev.currentGrade,
+      credits: credits ?? courseCredits ?? prev.credits,
+      professor: professor || courseProfessor || prev.professor,
+      professorEmail:
+        professorEmail || courseProfessorEmail || prev.professorEmail,
+      categories:
+        categories && categories.length > 0 ? categories : prev.categories,
+      gradeScale:
+        gradeScale && gradeScale.length > 0 ? gradeScale : prev.gradeScale,
+      exams: exams && exams.length > 0 ? exams : prev.exams,
+    }));
+  }, [
+    resolvedCourseId,
+    title,
+    courseName,
+    currentGrade,
+    courseGrade,
+    credits,
+    courseCredits,
+    professor,
+    courseProfessor,
+    professorEmail,
+    courseProfessorEmail,
+    categories,
+    gradeScale,
+    exams,
+  ]);
+
+  const handleSave = (updated: CourseDetailPayload & CourseMetadataExtras) => {
+    setLocalCourse(updated);
+    onUpdateCourse?.(updated);
+  };
+
+  const letterGrade = (() => {
+    const sorted = [...localCourse.gradeScale].sort(
+      (a, b) => b.minScore - a.minScore
+    );
+    const standing = localCourse.currentGrade ?? 94;
+    for (const cutoff of sorted) {
+      if (standing >= cutoff.minScore) return cutoff.letter;
+    }
+    return "F";
+  })();
+
+  const upcomingExams = [...localCourse.exams]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 2);
 
   return (
-    <div className="bg-amber-500 p-8 text-white w-full max-w-[90%] mx-auto rounded-sm shadow-lg mb-6 relative group">
-      {/* Remove Course Button */}
-      <button 
-        onClick={onDeleteCourse}
-        className="absolute top-4 right-4 p-2 bg-red-600/20 hover:bg-red-600 rounded-full transition-all opacity-0 group-hover:opacity-100"
+    <>
+      <div
+        onClick={() => setIsDrawerOpen(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsDrawerOpen(true);
+          }
+        }}
+        className="group relative mx-auto mb-5 w-full cursor-pointer rounded-2xl border border-white/10 bg-[#070708] p-6 sm:p-7 text-white shadow-xl transition-all duration-200 hover:border-white/25 hover:shadow-2xl focus-visible:ring-2 focus-visible:ring-white/40 outline-none"
       >
-        <Trash2 className="w-5 h-5" />
-      </button>
+        {/* Top Row: Course Title, Metadata & Standing */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2 pr-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#D6CFC2]">
+                {localCourse.credits ?? 4} Credits
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5 text-[10px] font-medium text-stone-400">
+                ID: {localCourse.courseId}
+              </span>
+            </div>
 
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h2 className="text-3xl font-black uppercase tracking-tight">{courseName}</h2>
-          <div className="flex flex-wrap gap-4 mt-2 text-sm font-medium opacity-90">
-            <span className="flex items-center gap-1"><User className="w-4 h-4" /> {courseProfessor}</span>
-            <span className="flex items-center gap-1"><Mail className="w-4 h-4" /> {courseProfessorEmail}</span>
-            <span className="flex items-center gap-1"><BookOpen className="w-4 h-4" /> {courseCredits} Credits</span>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white group-hover:text-[#F5F2EB] transition-colors flex items-center gap-2">
+              {localCourse.title}
+              <ArrowUpRight className="h-5 w-5 text-stone-500 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white" />
+            </h2>
+
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-400">
+              <span className="inline-flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-stone-500" />
+                {localCourse.professor || "TBA"}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5 text-stone-500" />
+                {localCourse.professorEmail || "No email"}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5 text-stone-500" />
+                {localCourse.categories.length} Syllabus Categories
+              </span>
+            </div>
           </div>
-        </div>
-        <h3 className="text-5xl font-black">{courseGrade}%</h3>
-      </div>
 
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="mt-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest bg-white/10 px-4 py-2 rounded-full hover:bg-white/20 transition-all"
-      >
-        {isOpen ? 'Hide Dashboard' : 'Manage Exams'}
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
+          {/* Right Grade Display & Remove Course Button */}
+          <div className="flex items-center justify-between sm:justify-end gap-4">
+            <div className="text-left sm:text-right">
+              <div className="flex items-baseline gap-2 sm:justify-end">
+                <span className="text-4xl font-black tracking-tight tabular-nums text-white">
+                  {localCourse.currentGrade ?? 94}%
+                </span>
+                <span className="rounded-lg border border-white/15 bg-white px-2 py-0.5 text-sm font-bold text-black">
+                  {letterGrade}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-stone-400">
+                Current Standing
+              </p>
+            </div>
 
-      {isOpen && (
-        <div className="mt-6 pt-6 border-t border-white/30 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <p className="text-xs font-bold uppercase opacity-60 mb-4">Current Schedule</p>
-            {exams.length > 0 ? (
-              exams.map((exam, index) => (
-                <ExamCard key={index} {...exam} onRemove={() => setExams(exams.filter((_, i) => i !== index))} />
-              ))
-            ) : (
-              <p className="text-sm italic opacity-50">No exams scheduled.</p>
+            {onDeleteCourse && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteCourse();
+                }}
+                aria-label={`Delete ${localCourse.title}`}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-stone-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all hover:border-red-500/40 hover:bg-red-500/15 hover:text-red-300"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             )}
           </div>
-          
-          <div className="bg-black/10 p-4 rounded-sm space-y-3 h-fit">
-            <p className="text-xs font-bold uppercase opacity-70">Quick Add Exam</p>
-            <input 
-              type="text" placeholder="Subject" 
-              className="w-full bg-white/10 p-2 rounded-sm outline-none focus:ring-1 ring-white"
-              value={newSubject} onChange={(e) => setNewSubject(e.target.value)}
-            />
-            <div className="flex gap-2">
-              <input 
-                type="date" className="flex-1 bg-white/10 p-2 rounded-sm outline-none"
-                value={newDate} onChange={(e) => setNewDate(e.target.value)}
-              />
-              <select 
-                className="bg-white/10 p-2 rounded-sm outline-none text-black"
-                value={newType} onChange={(e) => setNewType(e.target.value)}
-              >
-                <option value="Quiz">Quiz</option>
-                <option value="Midterm">Midterm</option>
-                <option value="Final">Final</option>
-              </select>
-            </div>
-            <button 
-              onClick={() => {
-                if(!newSubject || !newDate) return;
-                setExams([...exams, {subject: newSubject, date: newDate, testType: newType}]);
-                setNewSubject(""); setNewDate("");
-              }}
-              className="w-full py-2 bg-white text-amber-600 font-bold rounded-sm hover:bg-amber-50 transition-colors flex justify-center items-center gap-2"
-            >
-              <Plus className="w-4 h-4" /> Add to Schedule
-            </button>
-          </div>
         </div>
-      )}
-    </div>
+
+        {/* Bottom Preview Bar: Upcoming Exam Milestones + Drawer Trigger */}
+        <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {upcomingExams.length > 0 ? (
+              upcomingExams.map((exam) => (
+                <div
+                  key={exam.id}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-stone-300"
+                >
+                  <Calendar className="h-3 w-3 text-[#D6CFC2]" />
+                  <span className="font-medium text-white truncate max-w-[180px]">
+                    {exam.name}
+                  </span>
+                  {exam.location && (
+                    <>
+                      <span className="text-stone-500">·</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] text-stone-400">
+                        <MapPin className="h-3 w-3 text-stone-500" />
+                        {exam.location}
+                      </span>
+                    </>
+                  )}
+                  {exam.weightPercent !== undefined && (
+                    <span className="rounded bg-white/10 px-1.5 py-0.2 text-[10px] font-semibold text-[#E5DEC9]">
+                      {exam.weightPercent}%
+                    </span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <span className="text-xs text-stone-500">
+                No upcoming exams scheduled
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsDrawerOpen(true);
+            }}
+            className="inline-flex items-center justify-center gap-2 self-start sm:self-auto rounded-full border border-white/15 bg-white/[0.06] px-4 py-1.5 text-xs font-semibold text-white transition-all hover:border-white/30 hover:bg-white hover:text-black"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Manage Course Details
+          </button>
+        </div>
+      </div>
+
+      {/* Slide-Over CourseDetailsDrawer */}
+      <CourseDetailsDrawer
+        open={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
+        course={localCourse}
+        onSave={handleSave}
+        onAddToStudyPlan={onAddToStudyPlan}
+      />
+    </>
   );
 }
