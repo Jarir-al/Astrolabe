@@ -9,7 +9,7 @@ export default function WelcomeDashboard() {
         <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">
           Astrolabe <span className="text-purple-200">A Path To The Stars</span>
         </h1>
-        <p className="text-slate-500 mt-2">Welcome back. Your current situation in a nutshell.</p>
+        <p className="text-slate-500 mt-2">Welcome back. Your current galaxy in a nutshell.</p>
       </header>
 
       {/* The Bento Grid */}
