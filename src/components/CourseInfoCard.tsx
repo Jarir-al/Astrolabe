@@ -19,8 +19,11 @@ import CourseDetailsDrawer, {
   DEFAULT_EXAM_MILESTONES,
   STANDARD_10_POINT_SCALE,
 } from "./CourseDetailsDrawer";
+import CourseMetadata from "./CourseMetadata";
 
-export interface CourseInfoCardProps extends Partial<CourseDetailPayload>, CourseMetadataExtras {
+export interface CourseInfoCardProps
+  extends Partial<CourseDetailPayload>,
+    CourseMetadataExtras {
   id?: number | string;
   courseName?: string;
   courseGrade?: number;
@@ -55,6 +58,7 @@ export default function CourseInfoCard({
   defaultDrawerOpen = false,
 }: CourseInfoCardProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(defaultDrawerOpen);
+  const [isMetadataOpen, setIsMetadataOpen] = useState(false);
 
   const resolvedCourseId = String(courseId ?? id ?? "course-101");
   const resolvedTitle = title || courseName || "Computer Architecture";
@@ -177,7 +181,7 @@ export default function CourseInfoCard({
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <BookOpen className="h-3.5 w-3.5 text-stone-500" />
-                {localCourse.categories.length} Syllabus Categories
+                {localCourse.categories.length} Weighted Categories
               </span>
             </div>
           </div>
@@ -214,7 +218,7 @@ export default function CourseInfoCard({
           </div>
         </div>
 
-        {/* Bottom Preview Bar: Upcoming Exam Milestones + Drawer Trigger */}
+        {/* Bottom Preview Bar: Upcoming Exam Milestones + Separate Triggers for Metadata vs Drawer */}
         <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             {upcomingExams.length > 0 ? (
@@ -224,7 +228,7 @@ export default function CourseInfoCard({
                   className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-stone-300"
                 >
                   <Calendar className="h-3 w-3 text-[#D6CFC2]" />
-                  <span className="font-medium text-white truncate max-w-[180px]">
+                  <span className="font-medium text-white truncate max-w-[160px]">
                     {exam.name}
                   </span>
                   {exam.location && (
@@ -236,41 +240,60 @@ export default function CourseInfoCard({
                       </span>
                     </>
                   )}
-                  {exam.weightPercent !== undefined && (
-                    <span className="rounded bg-white/10 px-1.5 py-0.2 text-[10px] font-semibold text-[#E5DEC9]">
-                      {exam.weightPercent}%
-                    </span>
-                  )}
                 </div>
               ))
             ) : (
               <span className="text-xs text-stone-500">
-                No upcoming exams scheduled
+                No upcoming exams or projects scheduled
               </span>
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsDrawerOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-2 self-start sm:self-auto rounded-full border border-white/15 bg-white/[0.06] px-4 py-1.5 text-xs font-semibold text-white transition-all hover:border-white/30 hover:bg-white hover:text-black"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Manage Course Details
-          </button>
+          {/* Separate Action Buttons: Course Metadata vs Upcoming Exams & Projects Drawer */}
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMetadataOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-xs font-semibold text-[#E5DEC9] transition-all hover:border-white/30 hover:bg-white/10 hover:text-white"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Metadata &amp; Weights
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsDrawerOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white px-4 py-1.5 text-xs font-bold text-black transition-all hover:bg-[#E5DEC9]"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Exams &amp; Projects
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Slide-Over CourseDetailsDrawer */}
+      {/* Separate CourseMetadata Modal (Grade Distribution, Deliverable Weights, Cutoffs) */}
+      <CourseMetadata
+        open={isMetadataOpen}
+        onOpenChange={setIsMetadataOpen}
+        course={localCourse}
+        onSave={handleSave}
+      />
+
+      {/* Slide-Over CourseDetailsDrawer (Upcoming Exams & Projects Only) */}
       <CourseDetailsDrawer
         open={isDrawerOpen}
         onOpenChange={setIsDrawerOpen}
         course={localCourse}
         onSave={handleSave}
         onAddToStudyPlan={onAddToStudyPlan}
+        onOpenMetadata={() => setIsMetadataOpen(true)}
       />
     </>
   );
