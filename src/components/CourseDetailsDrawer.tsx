@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog as SheetPrimitive } from "radix-ui";
+import type { CourseWithDetails} from '@/actions/courses';
 import {
   X,
   Check,
@@ -72,6 +73,38 @@ export interface CourseDetailsDrawerProps {
   studyViewRoute?: string;
   autoSave?: boolean;
 }
+
+// import type { CourseWithDetails } from '@/app/actions/courses';
+
+// export function mapPrismaCourseToDrawer(course: CourseWithDetails) {
+//   return {
+//     id: course.id,
+//     title: course.name,
+//     code: course.code,
+//     term: course.term ?? '',
+//     instructor: {
+//       name: course.instructor ?? '',
+//       email: course.instructorEmail ?? '',
+//       officeHours: course.officeHours ?? '',
+//     },
+//     // Map database categories to whatever your drawer's UI uses
+//     categories: course.gradeCategories.map((cat) => ({
+//       id: cat.id,
+//       name: cat.name,
+//       weight: cat.weight,
+//       dropLowest: cat.dropLowest,
+//     })),
+//     // Map deliverables/assignments to your drawer's list structure
+//     assignments: course.deliverables.map((del) => ({
+//       id: del.id,
+//       title: del.title,
+//       dueDate: del.dueDate ? del.dueDate.toISOString() : null,
+//       points: del.pointsPossible ?? 0,
+//       completed: del.isCompleted,
+//       categoryName: del.category?.name ?? 'General',
+//     })),
+//   };
+// }
 
 // ============================================================================
 // Presets & Defaults
@@ -413,10 +446,11 @@ export function CourseDetailsDrawer({
         <SheetPrimitive.Content
           aria-label={`${course.title} Upcoming Exams and Projects Drawer`}
           onEscapeKeyDown={() => onOpenChange(false)}
+          // Changed Font FROM SANS TO MONO, SUBJECT TO CHANGE AND COLOR TO PURPLE CHANGELONG
           onPointerDownOutside={() => onOpenChange(false)}
-          className="fixed z-50 flex flex-col bg-[#070708] text-white font-sans shadow-[0_0_60px_rgba(0,0,0,0.85)] outline-none transition-transform duration-300 ease-out
+          className="fixed z-50 flex flex-col bg-[#1b1a38] text-white font-mono shadow-[0_0_60px_rgba(0,0,0,0.85)] outline-none transition-transform duration-300 ease-out
             inset-x-0 bottom-0 h-[92vh] w-full rounded-t-3xl border-t border-white/10
-            md:top-0 md:right-0 md:bottom-0 md:left-auto md:h-screen md:w-[500px] md:max-w-[520px] md:rounded-none md:border-t-0 md:border-l md:border-white/10
+            md:top-0 md:right-0 md:bottom-0 md:left-auto md:h-screen md:w-[550px] md:max-w-[600px] md:rounded-none md:border-t-0 md:border-l md:border-white/10
             data-[state=open]:animate-in data-[state=closed]:animate-out
             max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom
             md:data-[state=open]:slide-in-from-right md:data-[state=closed]:slide-out-to-right"
@@ -454,12 +488,13 @@ export function CourseDetailsDrawer({
             </div>
 
             <div className="pr-10">
-              <SheetPrimitive.Title className="text-xl font-bold tracking-tight text-white leading-snug">
+              {/* Note Change: Increased font size */}
+              <SheetPrimitive.Title className="text-5xl font-bold tracking-tight text-white leading-snug">
                 {course.title || "Computer Architecture"}
               </SheetPrimitive.Title>
 
               <SheetPrimitive.Description asChild>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-400">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-stone-400">
                   <span className="inline-flex items-center gap-1.5">
                     <User className="h-3.5 w-3.5 text-stone-500" />
                     {course.professor || "Dr. Elena Vance"}
@@ -610,7 +645,7 @@ export function CourseDetailsDrawer({
                         kind: e.target.value as "Exam" | "Project",
                       })
                     }
-                    className="col-span-4 rounded-lg border border-white/10 bg-black px-2 py-1.5 text-xs text-stone-200 outline-none focus:border-white/30"
+                    className="col-span-4 rounded-lg border border-white/10 bg-black px-2 py-1.5 text-xl text-stone-200 outline-none focus:border-white/30"
                   >
                     <option value="Exam">Exam</option>
                     <option value="Project">Project</option>
@@ -841,3 +876,4 @@ export function CourseDetailsDrawer({
 }
 
 export default CourseDetailsDrawer;
+

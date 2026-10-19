@@ -1,15 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import CourseCard from "@/components/CourseInfoCard";
-import {
-  CourseDetailPayload,
-  CourseMetadataExtras,
-  ExamMilestone,
-  DEFAULT_CATEGORIES,
-  DEFAULT_EXAM_MILESTONES,
-  STANDARD_10_POINT_SCALE,
-} from "@/components/CourseDetailsDrawer";
+import { CourseDetailsDrawer } from "@/components/CourseDetailsDrawer";
+import { mapPrismaCourseToDrawer } from "@/lib/course-adapter";
+import type { CourseWithDetails } from "@/actions/courses";
+import type { ExamMilestone } from "@/components/CourseDetailsDrawer";
 import {
   PlusCircle,
   ChevronDown,
@@ -18,11 +14,16 @@ import {
   Calendar,
   MapPin,
   Trash2,
+  Upload,
+  FileText,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  Loader2,
+  SlidersHorizontal,
+  RefreshCw,
 } from "lucide-react";
-
-interface StoredCourse extends CourseDetailPayload, CourseMetadataExtras {
-  id: number;
-}
 
 interface StudyPlanEntry extends ExamMilestone {
   courseId: string;
@@ -30,71 +31,173 @@ interface StudyPlanEntry extends ExamMilestone {
   addedAt?: string;
 }
 
-const INITIAL_SAMPLE_COURSE: StoredCourse = {
-  id: 101,
-  courseId: "cs-3410",
-  title: "Computer Architecture",
-  currentGrade: 94,
-  credits: 4,
-  professor: "Dr. Elena Vance",
-  professorEmail: "evance@university.edu",
-  categories: DEFAULT_CATEGORIES,
-  gradeScale: STANDARD_10_POINT_SCALE,
-  exams: DEFAULT_EXAM_MILESTONES,
+const SAMPLE_PRISMA_COURSE: CourseWithDetails = {
+  id: "cs-3410",
+  name: "Computer Architecture",
+  code: "CS 3410",
+  term: "Fall 2026",
+  instructor: "Dr. Elena Vance",
+  instructorEmail: "evance@university.edu",
+  officeHours: "MW 2:00 PM - 4:00 PM",
+  syllabusUrl: null,
+  rawExtractedJson: null,
+  userId: "user-default",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  gradeCategories: [
+    {
+      id: "cat-exams",
+      courseId: "cs-3410",
+      name: "Exams",
+      weight: 45,
+      dropLowest: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: "cat-hw",
+      courseId: "cs-3410",
+      name: "Homework",
+      weight: 25,
+      dropLowest: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: "cat-proj",
+      courseId: "cs-3410",
+      name: "Final Project",
+      weight: 20,
+      dropLowest: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: "cat-part",
+      courseId: "cs-3410",
+      name: "Participation",
+      weight: 10,
+      dropLowest: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ],
+  deliverables: [
+    {
+      id: "del-1",
+      courseId: "cs-3410",
+      categoryId: "cat-exams",
+      title: "Midterm Exam I: Pipelining & ISA",
+      description: null,
+      dueDate: new Date("2026-10-24T00:00:00.000Z"),
+      pointsPossible: 20,
+      pointsEarned: null,
+      isCompleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      category: null,
+    },
+    {
+      id: "del-2",
+      courseId: "cs-3410",
+      categoryId: "cat-proj",
+      title: "Cache Simulator Architecture Project",
+      description: null,
+      dueDate: new Date("2026-11-08T00:00:00.000Z"),
+      pointsPossible: 10,
+      pointsEarned: null,
+      isCompleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      category: null,
+    },
+    {
+      id: "del-3",
+      courseId: "cs-3410",
+      categoryId: "cat-exams",
+      title: "Midterm Exam II: Memory Hierarchy",
+      description: null,
+      dueDate: new Date("2026-11-19T00:00:00.000Z"),
+      pointsPossible: 25,
+      pointsEarned: null,
+      isCompleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      category: null,
+    },
+    {
+      id: "del-4",
+      courseId: "cs-3410",
+      categoryId: "cat-exams",
+      title: "Final Exam: Out-of-Order Execution",
+      description: null,
+      dueDate: new Date("2026-12-11T00:00:00.000Z"),
+      pointsPossible: 20,
+      pointsEarned: null,
+      isCompleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      category: null,
+    },
+  ],
 };
 
-function normalizeStoredCourse(raw: Record<string, unknown>, idx: number): StoredCourse {
-  const numericId = typeof raw.id === "number" ? raw.id : 100 + idx;
-  return {
-    id: numericId,
-    courseId: String(raw.courseId ?? raw.id ?? `course-${numericId}`),
-    title: String(raw.title ?? raw.courseName ?? "Computer Architecture"),
-    currentGrade: Number(raw.currentGrade ?? raw.courseGrade ?? 94),
-    credits: Number(raw.credits ?? raw.courseCredits ?? 4),
-    professor: String(raw.professor ?? raw.courseProfessor ?? "Dr. Elena Vance"),
-    professorEmail: String(
-      raw.professorEmail ?? raw.courseProfessorEmail ?? "evance@university.edu"
-    ),
-    categories: Array.isArray(raw.categories) && raw.categories.length > 0
-      ? (raw.categories as StoredCourse["categories"])
-      : DEFAULT_CATEGORIES,
-    gradeScale: Array.isArray(raw.gradeScale) && raw.gradeScale.length > 0
-      ? (raw.gradeScale as StoredCourse["gradeScale"])
-      : Array.isArray(raw.thresholds) && raw.thresholds.length > 0
-      ? (raw.thresholds as StoredCourse["gradeScale"])
-      : STANDARD_10_POINT_SCALE,
-    exams: Array.isArray(raw.exams) && raw.exams.length > 0
-      ? (raw.exams as StoredCourse["exams"])
-      : DEFAULT_EXAM_MILESTONES,
-  };
-}
-
-export default function CoursesPage() {
-  const [courses, setCourses] = useState<StoredCourse[]>([]);
+export default function CoursesPage({
+  courses: initialCourses,
+}: {
+  courses?: CourseWithDetails[];
+}) {
+  const [coursesList, setCoursesList] = useState<CourseWithDetails[]>(
+    initialCourses && initialCourses.length > 0
+      ? initialCourses
+      : [SAMPLE_PRISMA_COURSE]
+  );
+  const [selectedCourse, setSelectedCourse] = useState<CourseWithDetails | null>(
+    initialCourses?.[0] ?? SAMPLE_PRISMA_COURSE
+  );
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [studyPlan, setStudyPlan] = useState<StudyPlanEntry[]>([]);
   const [hasHydrated, setHasHydrated] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
+  // Form & Mode State
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addMode, setAddMode] = useState<"syllabus" | "manual">("syllabus");
+
+  // Syllabus Upload & Extraction State
+  const [syllabusFile, setSyllabusFile] = useState<File | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractStep, setExtractStep] = useState<string>("");
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractedCourse, setExtractedCourse] = useState<CourseWithDetails | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Manual Form State
+  const [formData, setFormData] = useState({
+    name: "",
+    code: "",
+    credits: "4",
+    prof: "",
+    email: "",
+  });
+
+  const handleOpenCourse = (course: CourseWithDetails) => {
+    setSelectedCourse(course);
+    setIsDrawerOpen(true);
+  };
+
   useEffect(() => {
-    const savedCourses = localStorage.getItem("my-courses");
+    const savedCourses = localStorage.getItem("my-courses-prisma");
     if (savedCourses) {
       try {
         const parsed = JSON.parse(savedCourses);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setCourses(
-            parsed.map((item, idx) =>
-              normalizeStoredCourse(item as Record<string, unknown>, idx)
-            )
-          );
-        } else {
-          setCourses([INITIAL_SAMPLE_COURSE]);
+          setCoursesList(parsed);
+          setSelectedCourse(parsed[0]);
         }
-      } catch (e) {
-        console.error("Failed to parse saved courses", e);
-        setCourses([INITIAL_SAMPLE_COURSE]);
+      } catch {
+        // Ignore parse error
       }
-    } else {
-      setCourses([INITIAL_SAMPLE_COURSE]);
     }
 
     const savedStudyPlan = localStorage.getItem("astrolabe-study-plan");
@@ -108,15 +211,14 @@ export default function CoursesPage() {
         // Ignore parse errors
       }
     }
-
     setHasHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (hasHydrated) {
-      localStorage.setItem("my-courses", JSON.stringify(courses));
+    if (hasHydrated && coursesList.length > 0) {
+      localStorage.setItem("my-courses-prisma", JSON.stringify(coursesList));
     }
-  }, [courses, hasHydrated]);
+  }, [coursesList, hasHydrated]);
 
   // Listen for custom "astrolabe:add-to-study-plan" event dispatched by CourseDetailsDrawer
   useEffect(() => {
@@ -130,7 +232,7 @@ export default function CoursesPage() {
       const { courseId, courseTitle, exam } = custom.detail;
       setStudyPlan((prev) => {
         const filtered = prev.filter((item) => item.id !== exam.id);
-        return [
+        const next = [
           ...filtered,
           {
             ...exam,
@@ -139,6 +241,8 @@ export default function CoursesPage() {
             addedAt: new Date().toISOString(),
           },
         ];
+        localStorage.setItem("astrolabe-study-plan", JSON.stringify(next));
+        return next;
       });
     };
 
@@ -147,46 +251,140 @@ export default function CoursesPage() {
       window.removeEventListener("astrolabe:add-to-study-plan", handler);
   }, []);
 
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    grade: "",
-    credits: "",
-    prof: "",
-    email: "",
-  });
+  // Handle Drag & Drop / File Select
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        setExtractError("Please upload a PDF syllabus document (.pdf).");
+        return;
+      }
+      setSyllabusFile(file);
+      setExtractError(null);
+      setExtractedCourse(null);
+    }
+  };
 
-  const addCourse = () => {
-    if (!formData.name || !formData.grade) return;
-    const id = Date.now();
-    const newCourse: StoredCourse = {
-      id,
-      courseId: `course-${id}`,
-      title: formData.name,
-      currentGrade: parseInt(formData.grade) || 0,
-      credits: parseInt(formData.credits) || 0,
-      professor: formData.prof,
-      professorEmail: formData.email,
-      categories: DEFAULT_CATEGORIES,
-      gradeScale: STANDARD_10_POINT_SCALE,
-      exams: DEFAULT_EXAM_MILESTONES,
+  // Auto-Extract from Syllabus via API
+  const handleExtractSyllabus = async () => {
+    if (!syllabusFile) return;
+
+    setIsExtracting(true);
+    setExtractError(null);
+    setExtractStep("Uploading syllabus PDF...");
+
+    try {
+      const stepTimer1 = setTimeout(() => {
+        setExtractStep("Gemini parsing syllabus structure...");
+      }, 1200);
+
+      const stepTimer2 = setTimeout(() => {
+        setExtractStep("Extracting grade categories & weight percentages...");
+      }, 2600);
+
+      const stepTimer3 = setTimeout(() => {
+        setExtractStep("Detecting exam milestones, projects & due dates...");
+      }, 4200);
+
+      const bodyData = new FormData();
+      bodyData.append("file", syllabusFile);
+
+      const res = await fetch("/api/syllabus/upload", {
+        method: "POST",
+        body: bodyData,
+      });
+
+      clearTimeout(stepTimer1);
+      clearTimeout(stepTimer2);
+      clearTimeout(stepTimer3);
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to extract syllabus. Check parser service.");
+      }
+
+      setExtractStep("Extraction complete!");
+      setExtractedCourse(data.course);
+    } catch (err) {
+      console.error("Syllabus extraction error:", err);
+      setExtractError(
+        err instanceof Error
+          ? err.message
+          : "Extraction failed. Please verify that the syllabus extractor microservice is running."
+      );
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  // Confirm Extracted Course and Add to List
+  const handleConfirmExtractedCourse = () => {
+    if (!extractedCourse) return;
+
+    setCoursesList((prev) => [extractedCourse, ...prev]);
+    setSelectedCourse(extractedCourse);
+    setIsDrawerOpen(true); // Automatically open the drawer to review exams & dates!
+
+    // Reset Form State
+    setShowAddForm(false);
+    setSyllabusFile(null);
+    setExtractedCourse(null);
+    setExtractStep("");
+  };
+
+  // Manual Add Course
+  const addCourseManual = () => {
+    if (!formData.name) return;
+    const newId = `course-${Date.now()}`;
+    const newPrismaCourse: CourseWithDetails = {
+      id: newId,
+      name: formData.name,
+      code: formData.code || "CS 1000",
+      term: "Fall 2026",
+      instructor: formData.prof || null,
+      instructorEmail: formData.email || null,
+      officeHours: null,
+      syllabusUrl: null,
+      rawExtractedJson: null,
+      userId: "user-default",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      gradeCategories: [
+        {
+          id: `cat-${Date.now()}-1`,
+          courseId: newId,
+          name: "Exams",
+          weight: 50,
+          dropLowest: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: `cat-${Date.now()}-2`,
+          courseId: newId,
+          name: "Assignments",
+          weight: 50,
+          dropLowest: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      deliverables: [],
     };
-    setCourses((prev) => [...prev, newCourse]);
-    setFormData({ name: "", grade: "", credits: "", prof: "", email: "" });
+
+    setCoursesList((prev) => [newPrismaCourse, ...prev]);
+    setSelectedCourse(newPrismaCourse);
+    setFormData({ name: "", code: "", credits: "4", prof: "", email: "" });
     setShowAddForm(false);
   };
 
-  const deleteCourse = (id: number) => {
-    setCourses((prev) => prev.filter((c) => c.id !== id));
-  };
-
-  const updateCourse = (
-    id: number,
-    updated: CourseDetailPayload & CourseMetadataExtras
-  ) => {
-    setCourses((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updated, id } : c))
-    );
+  const deleteCourse = (id: string) => {
+    setCoursesList((prev) => prev.filter((c) => c.id !== id));
+    if (selectedCourse?.id === id) {
+      const remaining = coursesList.filter((c) => c.id !== id);
+      setSelectedCourse(remaining[0] ?? null);
+    }
   };
 
   const removeStudyPlanItem = (examId: string) => {
@@ -201,71 +399,333 @@ export default function CoursesPage() {
     return <div className="max-w-5xl mx-auto p-6 opacity-0">Loading...</div>;
   }
 
-  const visibleCourses = showAll ? courses : courses.slice(0, 1);
+  const visibleCourses = showAll ? coursesList : coursesList.slice(0, 1);
 
   return (
     <div className="max-w-4xl mx-auto p-6">
       {/* 1. Header */}
       <div className="flex justify-between items-center mb-8 border-b pb-4">
-        <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black">
-          Academics
-        </h1>
+        <div>
+          <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black">
+            Academics
+          </h1>
+          <p className="text-xs text-stone-500 mt-1">
+            Manage your courses, syllabus grading weights, and exam schedules
+          </p>
+        </div>
+
         <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center gap-2 bg-black text-white px-6 py-2 rounded-full font-bold hover:bg-gray-800 transition-all text-sm"
+          onClick={() => {
+            setShowAddForm(!showAddForm);
+            setExtractedCourse(null);
+            setExtractError(null);
+          }}
+          className="flex items-center gap-2 bg-black text-white px-6 py-2.5 rounded-full font-bold hover:bg-stone-800 transition-all text-sm shadow-md active:scale-[0.99]"
         >
           <PlusCircle className="w-4 h-4" />{" "}
           {showAddForm ? "Cancel" : "Add Course"}
         </button>
       </div>
 
-      {/* 2. Add Course Form (Full Width) */}
+      {/* 2. Add Course Form with AI Syllabus Auto-Extraction */}
       {showAddForm && (
-        <div className="mb-10 p-6 bg-gray-100 rounded-sm grid grid-cols-1 md:grid-cols-2 gap-4 border-l-4 border-amber-500 shadow-sm">
-          <input
-            placeholder="Course Name"
-            className="p-2 border text-black"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          />
-          <input
-            placeholder="Grade (%)"
-            type="number"
-            className="p-2 border text-black"
-            value={formData.grade}
-            onChange={(e) =>
-              setFormData({ ...formData, grade: e.target.value })
-            }
-          />
-          <input
-            placeholder="Credits"
-            type="number"
-            className="p-2 border text-black"
-            value={formData.credits}
-            onChange={(e) =>
-              setFormData({ ...formData, credits: e.target.value })
-            }
-          />
-          <input
-            placeholder="Professor Name"
-            className="p-2 border text-black"
-            value={formData.prof}
-            onChange={(e) => setFormData({ ...formData, prof: e.target.value })}
-          />
-          <input
-            placeholder="Professor Email"
-            className="p-2 border text-black col-span-full"
-            value={formData.email}
-            onChange={(e) =>
-              setFormData({ ...formData, email: e.target.value })
-            }
-          />
-          <button
-            onClick={addCourse}
-            className="bg-amber-500 text-white font-bold py-3 hover:bg-amber-600 transition-colors col-span-full"
-          >
-            Save Course
-          </button>
+        <div className="mb-10 rounded-2xl border border-stone-200 bg-white p-6 shadow-xl transition-all">
+          {/* Mode Tabs */}
+          <div className="flex items-center justify-between border-b border-stone-200 pb-4 mb-5">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAddMode("syllabus")}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                  addMode === "syllabus"
+                    ? "bg-black text-white shadow-sm"
+                    : "text-stone-500 hover:text-black hover:bg-stone-100"
+                }`}
+              >
+                <Sparkles className="h-4 w-4 text-amber-400" />
+                Auto-Extract from Syllabus (PDF)
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode("manual")}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                  addMode === "manual"
+                    ? "bg-black text-white shadow-sm"
+                    : "text-stone-500 hover:text-black hover:bg-stone-100"
+                }`}
+              >
+                Manual Entry
+              </button>
+            </div>
+
+            <span className="text-[11px] font-medium text-stone-400 hidden sm:inline">
+              {addMode === "syllabus"
+                ? "Auto-generates weights, deliverables & exams"
+                : "Enter course details manually"}
+            </span>
+          </div>
+
+          {/* TAB 1: Auto-Extract from Syllabus */}
+          {addMode === "syllabus" && (
+            <div className="space-y-5">
+              {!extractedCourse ? (
+                <>
+                  {/* Dropzone */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
+                      syllabusFile
+                        ? "border-black bg-stone-50"
+                        : "border-stone-300 hover:border-black hover:bg-stone-50/70"
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white shadow-sm group-hover:scale-105 transition-transform mb-3">
+                      {isExtracting ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+                      ) : (
+                        <FileText className="h-6 w-6 text-amber-300" />
+                      )}
+                    </div>
+
+                    {syllabusFile ? (
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-black">
+                          {syllabusFile.name}
+                        </p>
+                        <p className="text-xs text-stone-400">
+                          {(syllabusFile.size / 1024).toFixed(1)} KB · Ready to extract
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-black">
+                          Drag and drop course syllabus PDF here, or browse files
+                        </p>
+                        <p className="text-xs text-stone-400">
+                          Supports course syllabi in PDF format (.pdf)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {extractError && (
+                    <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-600">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{extractError}</span>
+                    </div>
+                  )}
+
+                  {/* Extract Button & Status */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                    <div className="text-xs text-stone-500 flex items-center gap-2">
+                      {isExtracting && (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
+                          <span className="font-medium text-stone-700 animate-pulse">
+                            {extractStep}
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!syllabusFile || isExtracting}
+                      onClick={handleExtractSyllabus}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-black px-6 py-3 text-xs font-bold text-white shadow-md hover:bg-stone-800 disabled:opacity-40 transition-all active:scale-[0.99]"
+                    >
+                      {isExtracting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 text-amber-400" />
+                      )}
+                      <span>
+                        {isExtracting ? "Extracting Course Details..." : "Auto-Extract Course Data"}
+                      </span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Extracted Course Preview Card */
+                <div className="space-y-5 rounded-2xl border border-black/10 bg-stone-50 p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white px-2 py-0.5 text-[11px] font-black uppercase text-black">
+                          {extractedCourse.code}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                          <CheckCircle2 className="h-3 w-3" /> Successfully Parsed
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-black text-black tracking-tight">
+                        {extractedCourse.name}
+                      </h3>
+                      {extractedCourse.instructor && (
+                        <p className="text-xs text-stone-500">
+                          Instructor: <strong className="text-stone-700">{extractedCourse.instructor}</strong>
+                          {extractedCourse.officeHours && ` · ${extractedCourse.officeHours}`}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExtractedCourse(null);
+                        setSyllabusFile(null);
+                      }}
+                      className="text-xs font-semibold text-stone-400 hover:text-black underline underline-offset-2"
+                    >
+                      Upload Different File
+                    </button>
+                  </div>
+
+                  {/* Grade Categories & Weights Preview */}
+                  <div className="rounded-xl border border-stone-200 bg-white p-4 space-y-2.5">
+                    <div className="flex items-center justify-between text-xs font-bold text-stone-700">
+                      <span>Grade Distribution &amp; Weights ({extractedCourse.gradeCategories.length} Categories)</span>
+                      <span className="text-[11px] text-emerald-600 font-black">
+                        Total: {extractedCourse.gradeCategories.reduce((s, c) => s + c.weight, 0)}%
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {extractedCourse.gradeCategories.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs text-stone-700 font-medium"
+                        >
+                          <span>{cat.name}</span>
+                          <span className="rounded bg-black text-white px-1.5 py-0.2 text-[10px] font-bold">
+                            {cat.weight}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Deliverables & Exams Schedule Preview */}
+                  <div className="rounded-xl border border-stone-200 bg-white p-4 space-y-2.5">
+                    <div className="flex items-center justify-between text-xs font-bold text-stone-700">
+                      <span>Deliverables &amp; Exam Dates ({extractedCourse.deliverables.length} Items Found)</span>
+                      <span className="text-[11px] text-stone-400">Chronological schedule</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {extractedCourse.deliverables.map((del) => {
+                        const dateStr = del.dueDate
+                          ? new Date(del.dueDate).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })
+                          : "TBD";
+                        const isExam =
+                          del.title.toLowerCase().includes("exam") ||
+                          del.title.toLowerCase().includes("midterm") ||
+                          del.title.toLowerCase().includes("final");
+
+                        return (
+                          <div
+                            key={del.id}
+                            className={`flex items-center justify-between gap-2 rounded-lg border p-2 text-xs ${
+                              isExam
+                                ? "border-amber-300 bg-amber-50/60 font-semibold text-black"
+                                : "border-stone-100 bg-stone-50 text-stone-700"
+                            }`}
+                          >
+                            <span className="truncate max-w-[170px]" title={del.title}>
+                              {del.title}
+                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-stone-500">
+                              <span>{dateStr}</span>
+                              {del.pointsPossible !== null && (
+                                <span className="rounded bg-stone-200/80 px-1 text-[10px] font-bold text-stone-800">
+                                  {del.pointsPossible}%
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Confirmation Actions */}
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setExtractedCourse(null)}
+                      className="rounded-xl border border-stone-200 px-4 py-2.5 text-xs font-bold text-stone-600 hover:bg-white transition-colors"
+                    >
+                      Re-Extract
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmExtractedCourse}
+                      className="inline-flex items-center gap-2 rounded-xl bg-black px-6 py-2.5 text-xs font-bold text-white shadow-lg hover:bg-stone-800 transition-all active:scale-[0.99]"
+                    >
+                      <span>Add Course &amp; Open Schedule</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: Manual Entry Form */}
+          {addMode === "manual" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                placeholder="Course Name (e.g. Operating Systems)"
+                className="p-2.5 border rounded-lg text-black text-xs outline-none focus:border-black"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              />
+              <input
+                placeholder="Course Code (e.g. CS 4410)"
+                className="p-2.5 border rounded-lg text-black text-xs outline-none focus:border-black"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              />
+              <input
+                placeholder="Credits"
+                type="number"
+                className="p-2.5 border rounded-lg text-black text-xs outline-none focus:border-black"
+                value={formData.credits}
+                onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
+              />
+              <input
+                placeholder="Professor Name"
+                className="p-2.5 border rounded-lg text-black text-xs outline-none focus:border-black"
+                value={formData.prof}
+                onChange={(e) => setFormData({ ...formData, prof: e.target.value })}
+              />
+              <input
+                placeholder="Professor Email"
+                className="p-2.5 border rounded-lg text-black text-xs col-span-full outline-none focus:border-black"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+              <button
+                type="button"
+                onClick={addCourseManual}
+                className="bg-black text-white font-bold py-3 rounded-xl hover:bg-stone-800 transition-colors col-span-full text-xs shadow-md"
+              >
+                Save Course Manually
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -273,32 +733,46 @@ export default function CoursesPage() {
       <div className="mb-12">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">
-            Your Courses
+            Your Courses ({coursesList.length})
           </h2>
           <span className="text-xs text-gray-400">
-            Click any course card to open CourseDetailsDrawer
+            Click any course card to open Schedule &amp; Deliverables Drawer
           </span>
         </div>
         <div className="flex flex-col gap-4">
           {visibleCourses.length > 0 ? (
-            visibleCourses.map((course, idx) => (
-              <CourseCard
-                key={course.id}
-                {...course}
-                defaultDrawerOpen={idx === 0}
-                onDeleteCourse={() => deleteCourse(course.id)}
-                onUpdateCourse={(updated) => updateCourse(course.id, updated)}
-              />
-            ))
+            visibleCourses.map((course) => {
+              const mapped = mapPrismaCourseToDrawer(course);
+              return (
+                <div
+                  key={course.id}
+                  onClick={() => handleOpenCourse(course)}
+                  className="cursor-pointer"
+                >
+                  <CourseCard
+                    courseId={mapped.courseId}
+                    title={mapped.title}
+                    categories={mapped.categories}
+                    gradeScale={mapped.gradeScale}
+                    exams={mapped.exams}
+                    professor={mapped.professor}
+                    professorEmail={mapped.professorEmail}
+                    credits={mapped.credits}
+                    currentGrade={mapped.currentGrade ?? 94}
+                    onDeleteCourse={() => deleteCourse(course.id)}
+                  />
+                </div>
+              );
+            })
           ) : (
             <p className="text-gray-400 italic text-sm">
-              No courses added yet.
+              No courses added yet. Upload a syllabus above to get started!
             </p>
           )}
         </div>
 
         {/* Dropdown Toggle Button */}
-        {courses.length > 1 && (
+        {coursesList.length > 1 && (
           <button
             onClick={() => setShowAll(!showAll)}
             className="w-full mt-4 py-3 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest text-gray-500 hover:text-black hover:bg-gray-50 transition-all border border-dashed border-gray-200"
@@ -309,7 +783,7 @@ export default function CoursesPage() {
               </>
             ) : (
               <>
-                <ChevronDown className="w-4 h-4" /> View {courses.length - 1}{" "}
+                <ChevronDown className="w-4 h-4" /> View {coursesList.length - 1}{" "}
                 other courses
               </>
             )}
@@ -317,7 +791,14 @@ export default function CoursesPage() {
         )}
       </div>
 
-      {/* 4. Study Plan & Tools Section (Target of "Add to Study Plan") */}
+      {/* Wire database-backed Prisma course data into CourseDetailsDrawer */}
+      <CourseDetailsDrawer
+        open={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
+        course={mapPrismaCourseToDrawer(selectedCourse)}
+      />
+
+      {/* 4. Study Plan Section */}
       <div id="study-tools" className="pt-10 border-t border-gray-200">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">

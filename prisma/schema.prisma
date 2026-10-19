@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------
+// USER & ACCOUNT
+// ----------------------------------------------------
+model User {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  name                 String?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  subscriptionStatus   String    @default("FREE") // FREE, ACTIVE, CANCELED
+  currentPeriodEnd     DateTime?
+
+  courses              Course[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+// ----------------------------------------------------
+// ACADEMIC / SYLLABUS PIPELINE
+// ----------------------------------------------------
+model Course {
+  id              String          @id @default(uuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String          // e.g., "Data Structures & Algorithmic Analysis"
+  code            String          // e.g., "CS 3345"
+  term            String?         // e.g., "Fall 2026"
+  instructor      String?
+  instructorEmail String?
+  officeHours     String?
+  syllabusUrl     String?         // Link or key to uploaded file
+  rawExtractedJson Json?          // Raw dump from the FastAPI Gemini parser for auditing
+
+  gradeCategories GradeCategory[]
+  deliverables    Deliverable[]
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+}
+
+model GradeCategory {
+  id           String        @id @default(uuid())
+  courseId     String
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  name         String        // e.g., "Exams", "Homework", "Quizzes"
+  weight       Float         // e.g., 40.0 for 40%
+  dropLowest   Int           @default(0) // e.g., 1 if lowest quiz is dropped
+
+  deliverables Deliverable[]
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([courseId])
+}
+
+model Deliverable {
+  id              String         @id @default(uuid())
+  courseId        String
+  course          Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  categoryId      String?
+  category        GradeCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  title           String         // e.g., "Assignment 1", "Midterm Exam"
+  description     String?
+  dueDate         DateTime?
+  pointsPossible  Float?
+  pointsEarned    Float?
+  isCompleted     Boolean        @default(false)
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([courseId])
+  @@index([categoryId])
+}

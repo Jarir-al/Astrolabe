@@ -366,17 +366,49 @@ export function CourseMetadata({
     persistMetadataChanges,
   ]);
 
-  const handleSyllabusSync = (fileName?: string) => {
+  const handleSyllabusSync = async (file: File) => {
     setIsSyncingPdf(true);
-    setTimeout(() => {
-      setIsSyncingPdf(false);
-      setPdfSyncMessage(
-        fileName
-          ? `Extracted grade distribution & scale from ${fileName}`
-          : "Synced metadata with course syllabus PDF"
-      );
+    setPdfSyncMessage("Extracting syllabus with Gemini AI...");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/syllabus/upload", {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to extract syllabus.");
+      }
+
+      if (data.course) {
+        if (data.course.name) setTitle(data.course.name);
+        if (data.course.instructor) setProfessor(data.course.instructor);
+        if (data.course.instructorEmail) setProfessorEmail(data.course.instructorEmail);
+        if (Array.isArray(data.course.gradeCategories) && data.course.gradeCategories.length > 0) {
+          setCategories(
+            data.course.gradeCategories.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              weight: c.weight,
+              dropLowest: c.dropLowest ?? 0,
+            }))
+          );
+        }
+        if (Array.isArray(data.letterGradeScale) && data.letterGradeScale.length > 0) {
+          setGradeScale(data.letterGradeScale);
+        }
+      }
+
+      setPdfSyncMessage(`Successfully extracted weights & grading policy from ${file.name}`);
       setIsDirty(true);
-    }, 800);
+    } catch (err) {
+      setPdfSyncMessage(
+        err instanceof Error ? err.message : "Failed to extract syllabus."
+      );
+    } finally {
+      setIsSyncingPdf(false);
+    }
   };
 
   const metadataBody = (
@@ -912,7 +944,7 @@ export function CourseMetadata({
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleSyllabusSync(file.name);
+              if (file) handleSyllabusSync(file);
             }}
           />
           <button
@@ -1034,3 +1066,4 @@ export function CourseMetadata({
 }
 
 export default CourseMetadata;
+
