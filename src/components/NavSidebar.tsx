@@ -27,13 +27,12 @@ const items = [
   { title: "Settings", url: "/settings", icon: Settings },
 ]
 
-// THIS LINE IS THE FIX: It must say 'export'
 export function NavSidebar() {
   return (
     <Sidebar variant="floating" collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-amber-600 font-bold px-2 py-4">
+          <SidebarGroupLabel className="text-amber-600 dark:text-amber-500 font-bold px-2 py-4 tracking-wider">
             ASTROLABE
           </SidebarGroupLabel>
           <SidebarGroupContent>
